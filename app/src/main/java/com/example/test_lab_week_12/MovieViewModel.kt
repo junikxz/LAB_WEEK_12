@@ -8,31 +8,35 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class MovieViewModel(private val movieRepository: MovieRepository)
     : ViewModel() {
+
     init {
         fetchPopularMovies()
     }
-    // define the LiveData
-    private val _popularMovies = MutableStateFlow(
-        emptyList<Movie>()
-    )
 
+    private val _popularMovies = MutableStateFlow(emptyList<Movie>())
     val popularMovies: StateFlow<List<Movie>> = _popularMovies
+
     private val _error = MutableStateFlow("")
     val error: StateFlow<String> = _error
-    // fetch movies from the API
+
     private fun fetchPopularMovies() {
-// launch a coroutine in viewModelScope
-// Dispatchers.IO means that this coroutine will run on a shared pool of threads
         viewModelScope.launch(Dispatchers.IO) {
-            movieRepository.fetchMovies().catch{
-                _error.value ="An exception occurred: ${it.message}"
-            }.collect {
-                _popularMovies.value = it
-            }
+            movieRepository.fetchMovies()
+                .map { movies ->
+                    // 👉 Sort descending by popularity
+                    movies.sortedByDescending { it.popularity }
+                }
+                .catch { e ->
+                    _error.value = "An exception occurred: ${e.message}"
+                }
+                .collect { sortedMovies ->
+                    _popularMovies.value = sortedMovies
+                }
         }
     }
 }
